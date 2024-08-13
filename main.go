@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 )
 
 var client *ApiInterface.Client
@@ -73,16 +74,63 @@ func GetCampus(campusName string) (Campus, error) {
 	return campus, nil
 }
 
-//func GetUserCourses(userId int) ([]int, error) {
-//
-//}
+type Course struct {
+	Id     int    `json:"id"`
+	Name   string `json:"name"`
+	Campus string `json:"campus"`
+}
 
-func ExtractId(token string) (string, error) {
+func GetCampusCourses(campusName string, client *ApiInterface.Client) ([]Course, error) {
+	data, err := client.Run("query queryCampusEvents($campusName : String!){\n  event (where: {_and: [{campus: {_eq: $campusName}}, {object: {type: {_eq: \"piscine\"}}}]}){\n    id\n    object{\n      campus\n      name\n    }\n  }\n}", map[string]interface{}{"campusName": campusName})
+	if err != nil {
+		return nil, err
+	}
+	var courses []Course
+	for _, v := range data["event"].([]interface{}) {
+		course := v.(map[string]interface{})
+		courses = append(courses, Course{
+			Id:     int(course["id"].(float64)),
+			Name:   course["object"].(map[string]interface{})["name"].(string),
+			Campus: course["object"].(map[string]interface{})["campus"].(string),
+		})
+	}
+
+	return courses, nil
+}
+
+func GetUserCourses(campusName string, userId int, client *ApiInterface.Client) ([]Course, error) {
+	data, err := client.Run("query queryUserEvents($campusName : String!,$userID : Int!){\n  user (where:{id:{_eq: $userID}}){\n    events (where: {_and: [{event:{campus: {_eq: $campusName}}}, {event:{object: {type: {_eq: \"piscine\"}}}}]}){\n      event{\n        id\n        object{\n          campus\n          name\n        }\n      }\n    }\n  }\n}", map[string]interface{}{"campusName": campusName, "userID": userId})
+	if err != nil {
+		return nil, err
+	}
+	var courses []Course
+	for _, v := range data["user"].([]interface{})[0].(map[string]interface{})["events"].([]interface{}) {
+		course := v.(map[string]interface{})["event"].(map[string]interface{})
+		courses = append(courses, Course{
+			Id:     int(course["id"].(float64)),
+			Name:   course["object"].(map[string]interface{})["name"].(string),
+			Campus: course["object"].(map[string]interface{})["campus"].(string),
+		})
+	}
+
+	return courses, nil
+}
+
+func RegisterUserToCourse(userId int, courseId int, client *ApiInterface.Client) error {
+	_, err := client.Run("mutation insert_event_user ($objects: [event_user_insert_input!]!){\n    insert_event_user (objects: $objects) { returning { eventId } }\n  }", map[string]interface{}{"objects": []map[string]interface{}{{"eventId": courseId, "userId": userId}}})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func ExtractId(token string) (int, error) {
 	payload, err := ApiInterface.Decode(token)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
-	return payload["https://hasura.io/jwt/claims"].(map[string]interface{})["x-hasura-user-id"].(string), nil
+	id, err := strconv.Atoi(payload["https://hasura.io/jwt/claims"].(map[string]interface{})["x-hasura-user-id"].(string))
+	return id, nil
 }
 
 func returnJsonError(w http.ResponseWriter, err error, status int) {
@@ -168,35 +216,15 @@ func main() {
 			return
 		}
 		returnJson(w, struct {
-			Id string `json:"id"`
+			Id int `json:"id"`
 		}{
 			Id: id,
 		})
 	})
 
 	http.HandleFunc("/user/courses", func(w http.ResponseWriter, r *http.Request) {
-
-	})
-
-	http.HandleFunc("/campus/courses", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		campus, err := GetCampus(platformConfig.CampusName)
-		if err != nil {
-			returnJsonError(w, err, http.StatusInternalServerError)
-			return
-		}
-		//return the campus children data in json format
-		returnJson(w, campus.Children)
-	})
-
-	http.HandleFunc("/campus/register", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, x-token")
+		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -213,7 +241,98 @@ func main() {
 			returnJsonError(w, err, http.StatusBadRequest)
 			return
 		}
-		// get the course id from the request body
+		// get the user courses
+		courses, err := GetUserCourses(platformConfig.CampusName, id, client)
+		if err != nil {
+			returnJsonError(w, err, http.StatusInternalServerError)
+			return
+		}
+		returnJson(w, courses)
+	})
+
+	http.HandleFunc("/user/availableCourses", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "x-token")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// read the x-token header
+		token := r.Header.Get("x-token")
+		if token == "" {
+			returnJsonError(w, errors.New("x-token header is missing"), http.StatusBadRequest)
+			return
+		}
+		// extract the user id from the token
+		id, err := ExtractId(token)
+		if err != nil {
+			returnJsonError(w, err, http.StatusBadRequest)
+			return
+		}
+		// get the campus courses
+		courses, err := GetCampusCourses(platformConfig.CampusName, client)
+		if err != nil {
+			returnJsonError(w, err, http.StatusInternalServerError)
+			return
+		}
+		// get the user courses
+		userCourses, err := GetUserCourses(platformConfig.CampusName, id, client)
+		if err != nil {
+			returnJsonError(w, err, http.StatusInternalServerError)
+			return
+		}
+		// filter the campus courses to get the available courses
+		var availableCourses []Course
+		for _, course := range courses {
+			found := false
+			for _, userCourse := range userCourses {
+				if course.Id == userCourse.Id {
+					found = true
+					break
+				}
+			}
+			if !found {
+				availableCourses = append(availableCourses, course)
+			}
+		}
+		returnJson(w, availableCourses)
+	})
+
+	http.HandleFunc("/campus/courses", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		campus, err := GetCampusCourses(platformConfig.CampusName, client)
+		if err != nil {
+			returnJsonError(w, err, http.StatusInternalServerError)
+			return
+		}
+		returnJson(w, campus)
+	})
+
+	http.HandleFunc("/campus/register", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, x-token")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// read the x-token header
+		token := r.Header.Get("x-token")
+		if token == "" {
+			returnJsonError(w, errors.New("x-token header is missing"), http.StatusBadRequest)
+			return
+		}
+		// extract the user userId from the token
+		userId, err := ExtractId(token)
+		if err != nil {
+			returnJsonError(w, err, http.StatusBadRequest)
+			return
+		}
+		// get the course userId from the request body
 		var body struct {
 			CourseId int `json:"courseId"`
 		}
@@ -223,10 +342,10 @@ func main() {
 			return
 		}
 		// register the user to the course
-		//_, err = client.Run("mutation insertUserCourse($userId: Int!, $courseId: Int!){\n  insert_user_course_one(object: {user_id: $userId, course_id: $courseId}) {\n    id\n  }\n}", map[string]interface{}{"userId": id, "courseId": body.CourseId})
-		id = id
-		fmt.Println(id, body.CourseId)
+		fmt.Println(userId, body.CourseId)
+		fmt.Println(RegisterUserToCourse(userId, body.CourseId, client))
 		if err != nil {
+			fmt.Println(err)
 			returnJsonError(w, err, http.StatusInternalServerError)
 			return
 		}
