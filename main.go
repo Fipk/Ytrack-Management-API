@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 var client *ApiInterface.Client
@@ -124,6 +125,14 @@ func RegisterUserToCourse(userId int, courseId int, client *ApiInterface.Client)
 	return nil
 }
 
+func RemoveUserFromCourse(userId int, courseId int, client *ApiInterface.Client) error {
+	_, err := client.Run("mutation remove_user_from_event($userId: Int!, $eventId: Int!) {\n    delete_event_user(\n      where: {\n        _and: [{ userId: { _eq: $userId } }, { eventId: { _eq: $eventId } }]\n      }\n    ) {\n      affected_rows\n    }\n  }", map[string]interface{}{"userId": userId, "eventId": courseId})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func ExtractId(token string) (int, error) {
 	payload, err := ApiInterface.Decode(token)
 	if err != nil {
@@ -229,6 +238,8 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+		// add a delay to test the loading spinner
+		time.Sleep(2 * time.Second)
 		// read the x-token header
 		token := r.Header.Get("x-token")
 		if token == "" {
@@ -257,6 +268,8 @@ func main() {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+		// add a delay to test the loading spinner
+		time.Sleep(2 * time.Second)
 		// read the x-token header
 		token := r.Header.Get("x-token")
 		if token == "" {
@@ -312,7 +325,7 @@ func main() {
 		returnJson(w, campus)
 	})
 
-	http.HandleFunc("/campus/register", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/campus/courses/register", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, x-token")
@@ -356,6 +369,51 @@ func main() {
 		})
 	})
 
+	http.HandleFunc("/campus/courses/unregister", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, x-token")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// read the x-token header
+		token := r.Header.Get("x-token")
+		if token == "" {
+			returnJsonError(w, errors.New("x-token header is missing"), http.StatusBadRequest)
+			return
+		}
+		// extract the user userId from the token
+		userId, err := ExtractId(token)
+		if err != nil {
+			returnJsonError(w, err, http.StatusBadRequest)
+			return
+		}
+		// get the course userId from the request body
+		var body struct {
+			CourseId int `json:"courseId"`
+		}
+		err = json.NewDecoder(r.Body).Decode(&body)
+		if err != nil {
+			returnJsonError(w, err, http.StatusBadRequest)
+			return
+		}
+		// register the user to the course
+		fmt.Println(userId, body.CourseId)
+		fmt.Println(RemoveUserFromCourse(userId, body.CourseId, client))
+		if err != nil {
+			fmt.Println(err)
+			returnJsonError(w, err, http.StatusInternalServerError)
+			return
+		}
+		returnJson(w, struct {
+			Message string `json:"message"`
+		}{
+			Message: "User unregistered from the course",
+		})
+	})
+	// start the server
+	fmt.Println("Server started on port 8080")
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
 		return
