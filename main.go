@@ -204,6 +204,39 @@ func main() {
 	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
 		returnJson(w, "not implemented yet")
 	})
+	http.HandleFunc("/user/name", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "x-token")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// read the x-token header
+		token := r.Header.Get("x-token")
+		if token == "" {
+			returnJsonError(w, errors.New("x-token header is missing"), http.StatusBadRequest)
+			return
+		}
+		// extract the user id from the token
+		id, err := ExtractId(token)
+		if err != nil {
+			returnJsonError(w, err, http.StatusBadRequest)
+			return
+		}
+		// get the user name
+		data, err := client.Run("query get_user_name($userID : Int!){\n  user(where:{id:{_eq: $userID}}){\n\t\tfirstName\nlastName\n  }\n}", map[string]interface{}{"userID": id})
+		if err != nil {
+			returnJsonError(w, err, http.StatusInternalServerError)
+			return
+		}
+		returnJson(w, struct {
+			FirstName string `json:"firstName"`
+			LastName  string `json:"lastName"`
+		}{
+			FirstName: data["user"].([]interface{})[0].(map[string]interface{})["firstName"].(string),
+			LastName:  data["user"].([]interface{})[0].(map[string]interface{})["lastName"].(string),
+		})
+	})
 
 	http.HandleFunc("/user/extractId", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -239,7 +272,7 @@ func main() {
 			return
 		}
 		// add a delay to test the loading spinner
-		time.Sleep(2 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		// read the x-token header
 		token := r.Header.Get("x-token")
 		if token == "" {
@@ -269,7 +302,7 @@ func main() {
 			return
 		}
 		// add a delay to test the loading spinner
-		time.Sleep(2 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 		// read the x-token header
 		token := r.Header.Get("x-token")
 		if token == "" {
