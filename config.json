@@ -1,4 +1,5 @@
 {
   "campusName": "yskills",
-  "domain": "ytrack.learn.ynov.com"
+  "domain": "ytrack.learn.ynov.com",
+  "localStart": true
 }
