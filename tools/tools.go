@@ -8,6 +8,7 @@ import (
 type Config struct {
 	CampusName string `json:"campusName"`
 	Domain     string `json:"domain"`
+	LocalStart bool   `json:"localStart"`
 }
 
 func LoadConfigFromFile(path string) (Config, error) {

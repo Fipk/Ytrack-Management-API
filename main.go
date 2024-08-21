@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -179,9 +181,16 @@ func main() {
 	if errr != nil {
 		log.Fatal(errr)
 	}
-	//fmt.Println(client.Run("query queryUser($idUser: Int!){\n  user (where: {id : {_eq: $idUser}}){\n    login\n  }\n}", map[string]interface{}{"idUser": 1102}))
 
 	// API
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		returnJson(w, "Welcome to the Ytrack Manager API")
+	})
+
+	http.HandleFunc("/swagger/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "swagger/"+r.URL.Path[8:])
+	})
 
 	http.HandleFunc("/campus", func(w http.ResponseWriter, r *http.Request) {
 		// print the campus information in json format
@@ -204,8 +213,9 @@ func main() {
 	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
 		returnJson(w, "not implemented yet")
 	})
+
 	http.HandleFunc("/user/name", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -239,7 +249,7 @@ func main() {
 	})
 
 	http.HandleFunc("/user/extractId", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -265,7 +275,7 @@ func main() {
 	})
 
 	http.HandleFunc("/user/courses", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -291,11 +301,16 @@ func main() {
 			returnJsonError(w, err, http.StatusInternalServerError)
 			return
 		}
-		returnJson(w, courses)
+		fmt.Println(len(courses))
+		if len(courses) == 0 {
+			returnJson(w, []string{})
+		} else {
+			returnJson(w, courses)
+		}
 	})
 
 	http.HandleFunc("/user/availableCourses", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -345,7 +360,7 @@ func main() {
 	})
 
 	http.HandleFunc("/campus/courses", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -359,7 +374,7 @@ func main() {
 	})
 
 	http.HandleFunc("/campus/courses/register", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, x-token")
 		if r.Method == "OPTIONS" {
@@ -403,7 +418,7 @@ func main() {
 	})
 
 	http.HandleFunc("/campus/courses/unregister", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, x-token")
 		if r.Method == "OPTIONS" {
@@ -445,10 +460,17 @@ func main() {
 			Message: "User unregistered from the course",
 		})
 	})
-	// start the server
-	fmt.Println("Server started on port 8080")
-	err := http.ListenAndServe(":8080", nil)
-	if err != nil {
-		return
+
+	// read in the config file if this is a local environment
+	if platformConfig.LocalStart == true {
+		fmt.Println("Server started on port 8080")
+		log.Fatalln(http.ListenAndServe(":8080", nil))
+	} else {
+		port := os.Getenv("PORT")
+		fmt.Println("Server started on port " + port)
+		addr := net.JoinHostPort("::", port)
+		server := &http.Server{Addr: addr}
+		log.Fatalln(server.ListenAndServe())
 	}
+
 }
