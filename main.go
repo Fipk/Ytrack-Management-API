@@ -144,7 +144,21 @@ func ExtractId(token string) (int, error) {
 	return id, nil
 }
 
+func ExtractRoles(token string) ([]string, error) {
+	payload, err := ApiInterface.Decode(token)
+	if err != nil {
+		return nil, err
+	}
+	roles := payload["https://hasura.io/jwt/claims"].(map[string]interface{})["x-hasura-allowed-roles"].([]interface{})
+	var rolesString []string
+	for _, role := range roles {
+		rolesString = append(rolesString, role.(string))
+	}
+	return rolesString, nil
+}
+
 func returnJsonError(w http.ResponseWriter, err error, status int) {
+	log.Println(err)
 	w.Header().Set("Content-Type", "application/json")
 	jsonData, err := json.Marshal(struct {
 		Error string `json:"error"`
@@ -248,6 +262,32 @@ func main() {
 		})
 	})
 
+	http.HandleFunc("/user/roles", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Headers", "x-token")
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// read the x-token header
+		token := r.Header.Get("x-token")
+		if token == "" {
+			returnJsonError(w, errors.New("x-token header is missing"), http.StatusBadRequest)
+			return
+		}
+		// extract the user roles from the token
+		roles, err := ExtractRoles(token)
+		if err != nil {
+			returnJsonError(w, err, http.StatusBadRequest)
+			return
+		}
+		returnJson(w, struct {
+			Roles []string `json:"roles"`
+		}{
+			Roles: roles,
+		})
+	})
+
 	http.HandleFunc("/user/extractId", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
@@ -301,7 +341,6 @@ func main() {
 			returnJsonError(w, err, http.StatusInternalServerError)
 			return
 		}
-		fmt.Println(len(courses))
 		if len(courses) == 0 {
 			returnJson(w, []string{})
 		} else {
@@ -402,11 +441,8 @@ func main() {
 			returnJsonError(w, err, http.StatusBadRequest)
 			return
 		}
-		// register the user to the course
-		fmt.Println(userId, body.CourseId)
-		fmt.Println(RegisterUserToCourse(userId, body.CourseId, client))
+		err = RegisterUserToCourse(userId, body.CourseId, client)
 		if err != nil {
-			fmt.Println(err)
 			returnJsonError(w, err, http.StatusInternalServerError)
 			return
 		}
@@ -447,10 +483,8 @@ func main() {
 			return
 		}
 		// register the user to the course
-		fmt.Println(userId, body.CourseId)
-		fmt.Println(RemoveUserFromCourse(userId, body.CourseId, client))
+		err = RemoveUserFromCourse(userId, body.CourseId, client)
 		if err != nil {
-			fmt.Println(err)
 			returnJsonError(w, err, http.StatusInternalServerError)
 			return
 		}
