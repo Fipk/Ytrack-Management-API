@@ -229,7 +229,7 @@ func main() {
 	})
 
 	http.HandleFunc("/user/name", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -263,7 +263,7 @@ func main() {
 	})
 
 	http.HandleFunc("/user/roles", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -289,7 +289,7 @@ func main() {
 	})
 
 	http.HandleFunc("/user/extractId", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -315,7 +315,7 @@ func main() {
 	})
 
 	http.HandleFunc("/user/courses", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -349,7 +349,7 @@ func main() {
 	})
 
 	http.HandleFunc("/user/availableCourses", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "x-token")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
@@ -399,7 +399,7 @@ func main() {
 	})
 
 	http.HandleFunc("/campus/courses", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return
@@ -413,7 +413,7 @@ func main() {
 	})
 
 	http.HandleFunc("/campus/courses/register", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, x-token")
 		if r.Method == "OPTIONS" {
@@ -454,7 +454,7 @@ func main() {
 	})
 
 	http.HandleFunc("/campus/courses/unregister", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", w.Header().Get("Origin"))
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, x-token")
 		if r.Method == "OPTIONS" {
