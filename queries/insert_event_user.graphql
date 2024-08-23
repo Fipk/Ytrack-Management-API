@@ -1,0 +1,7 @@
+mutation insert_event_user($objects: [event_user_insert_input!]!) {
+  insert_event_user(objects: $objects) {
+    returning {
+      eventId
+    }
+  }
+}

@@ -1,0 +1,13 @@
+query queryUserEvents($campusName: String!, $userID: Int!) {
+  user(where: { id: { _eq: $userID } }) {
+    events(where: { _and: [{ event: { campus: { _eq: $campusName } } }, { event: { object: { type: { _eq: "piscine" } } } }] }) {
+      event {
+        id
+        object {
+          campus
+          name
+        }
+      }
+    }
+  }
+}

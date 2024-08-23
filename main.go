@@ -83,8 +83,21 @@ type Course struct {
 	Campus string `json:"campus"`
 }
 
+// Function to read query from a file
+func loadQueryFromFile(filename string) (string, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return "", err
+	}
+	return string(content), nil
+}
+
 func GetCampusCourses(campusName string, client *ApiInterface.Client) ([]Course, error) {
-	data, err := client.Run("query queryCampusEvents($campusName : String!){\n  event (where: {_and: [{campus: {_eq: $campusName}}, {object: {type: {_eq: \"piscine\"}}}]}){\n    id\n    object{\n      campus\n      name\n    }\n  }\n}", map[string]interface{}{"campusName": campusName})
+	query, err := loadQueryFromFile("queries/queryCampusEvents.graphql")
+	if err != nil {
+		return nil, err
+	}
+	data, err := client.Run(query, map[string]interface{}{"campusName": campusName})
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +115,11 @@ func GetCampusCourses(campusName string, client *ApiInterface.Client) ([]Course,
 }
 
 func GetUserCourses(campusName string, userId int, client *ApiInterface.Client) ([]Course, error) {
-	data, err := client.Run("query queryUserEvents($campusName : String!,$userID : Int!){\n  user (where:{id:{_eq: $userID}}){\n    events (where: {_and: [{event:{campus: {_eq: $campusName}}}, {event:{object: {type: {_eq: \"piscine\"}}}}]}){\n      event{\n        id\n        object{\n          campus\n          name\n        }\n      }\n    }\n  }\n}", map[string]interface{}{"campusName": campusName, "userID": userId})
+	query, err := loadQueryFromFile("queries/queryUserEvents.graphql")
+	if err != nil {
+		return nil, err
+	}
+	data, err := client.Run(query, map[string]interface{}{"campusName": campusName, "userID": userId})
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +136,24 @@ func GetUserCourses(campusName string, userId int, client *ApiInterface.Client) 
 	return courses, nil
 }
 
+func GetUserNames(userId int, client *ApiInterface.Client) (string, string, error) {
+	query, err := loadQueryFromFile("queries/get_user_name.graphql")
+	if err != nil {
+		return "", "", err
+	}
+	data, err := client.Run(query, map[string]interface{}{"userID": userId})
+	if err != nil {
+		return "", "", err
+	}
+	return data["user"].([]interface{})[0].(map[string]interface{})["firstName"].(string), data["user"].([]interface{})[0].(map[string]interface{})["lastName"].(string), nil
+}
+
 func RegisterUserToCourse(userId int, courseId int, client *ApiInterface.Client) error {
-	_, err := client.Run("mutation insert_event_user ($objects: [event_user_insert_input!]!){\n    insert_event_user (objects: $objects) { returning { eventId } }\n  }", map[string]interface{}{"objects": []map[string]interface{}{{"eventId": courseId, "userId": userId}}})
+	query, err := loadQueryFromFile("queries/insert_event_user.graphql")
+	if err != nil {
+		return err
+	}
+	_, err = client.Run(query, map[string]interface{}{"objects": []map[string]interface{}{{"eventId": courseId, "userId": userId}}})
 	if err != nil {
 		return err
 	}
@@ -128,7 +161,11 @@ func RegisterUserToCourse(userId int, courseId int, client *ApiInterface.Client)
 }
 
 func RemoveUserFromCourse(userId int, courseId int, client *ApiInterface.Client) error {
-	_, err := client.Run("mutation remove_user_from_event($userId: Int!, $eventId: Int!) {\n    delete_event_user(\n      where: {\n        _and: [{ userId: { _eq: $userId } }, { eventId: { _eq: $eventId } }]\n      }\n    ) {\n      affected_rows\n    }\n  }", map[string]interface{}{"userId": userId, "eventId": courseId})
+	query, err := loadQueryFromFile("queries/remove_user_from_event.graphql")
+	if err != nil {
+		return err
+	}
+	_, err = client.Run(query, map[string]interface{}{"userId": userId, "eventId": courseId})
 	if err != nil {
 		return err
 	}
@@ -248,7 +285,7 @@ func main() {
 			return
 		}
 		// get the user name
-		data, err := client.Run("query get_user_name($userID : Int!){\n  user(where:{id:{_eq: $userID}}){\n\t\tfirstName\nlastName\n  }\n}", map[string]interface{}{"userID": id})
+		firstName, lastName, err := GetUserNames(id, client)
 		if err != nil {
 			returnJsonError(w, err, http.StatusInternalServerError)
 			return
@@ -257,8 +294,8 @@ func main() {
 			FirstName string `json:"firstName"`
 			LastName  string `json:"lastName"`
 		}{
-			FirstName: data["user"].([]interface{})[0].(map[string]interface{})["firstName"].(string),
-			LastName:  data["user"].([]interface{})[0].(map[string]interface{})["lastName"].(string),
+			FirstName: firstName,
+			LastName:  lastName,
 		})
 	})
 

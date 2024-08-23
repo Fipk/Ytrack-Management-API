@@ -1,0 +1,7 @@
+mutation remove_user_from_event($userId: Int!, $eventId: Int!) {
+  delete_event_user(
+    where: { _and: [{ userId: { _eq: $userId } }, { eventId: { _eq: $eventId } }] }
+  ) {
+    affected_rows
+  }
+}

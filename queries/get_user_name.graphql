@@ -1,0 +1,6 @@
+query get_user_name($userID: Int!) {
+  user(where: { id: { _eq: $userID } }) {
+    firstName
+    lastName
+  }
+}

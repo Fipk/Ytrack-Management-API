@@ -1,0 +1,9 @@
+query queryCampusEvents($campusName: String!) {
+  event(where: { _and: [{ campus: { _eq: $campusName } }, { object: { type: { _eq: "piscine" } } }] }) {
+    id
+    object {
+      campus
+      name
+    }
+  }
+}
